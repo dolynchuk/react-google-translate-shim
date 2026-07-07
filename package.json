@@ -1,0 +1,66 @@
+{
+  "name": "react-google-translate-shim",
+  "version": "0.1.0",
+  "description": "Stop Google Translate (and other in-page machine translators) from crashing your React app with NotFoundError. Detects the conflict and re-renders from scratch instead of reconciling against corrupted DOM.",
+  "keywords": [
+    "react",
+    "google-translate",
+    "machine-translation",
+    "removeChild",
+    "insertBefore",
+    "NotFoundError",
+    "crash",
+    "shim",
+    "i18n",
+    "dom"
+  ],
+  "author": "Maksym Dolynchuk",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/maksymdolynchuk/react-google-translate-shim.git"
+  },
+  "homepage": "https://github.com/maksymdolynchuk/react-google-translate-shim#readme",
+  "bugs": {
+    "url": "https://github.com/maksymdolynchuk/react-google-translate-shim/issues"
+  },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run test && npm run build"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "happy-dom": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^2.0.0"
+  }
+}
