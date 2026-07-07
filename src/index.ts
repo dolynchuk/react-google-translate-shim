@@ -1,6 +1,9 @@
 export {
-  initGoogleTranslateShim,
+  GoogleTranslateBoundary,
+  type GoogleTranslateBoundaryProps,
+} from "./GoogleTranslateBoundary";
+export {
   patchDomForGoogleTranslate,
   isGoogleTranslateActive,
-} from "./googleTranslateShim";
-export type { GoogleTranslateShimOptions } from "./googleTranslateShim";
+  type GoogleTranslateShimOptions,
+} from "./core";

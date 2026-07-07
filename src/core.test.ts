@@ -1,7 +1,4 @@
-import {
-  isGoogleTranslateActive,
-  patchDomForGoogleTranslate,
-} from "./googleTranslateShim";
+import { isGoogleTranslateActive, patchDomForGoogleTranslate } from "./core";
 
 describe("patchDomForGoogleTranslate", () => {
   afterEach(() => {
