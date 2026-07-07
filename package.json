@@ -18,11 +18,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/maksymdolynchuk/react-google-translate-shim.git"
+    "url": "git+https://github.com/dolynchuk/react-google-translate-shim.git"
   },
-  "homepage": "https://github.com/maksymdolynchuk/react-google-translate-shim#readme",
+  "homepage": "https://github.com/dolynchuk/react-google-translate-shim#readme",
   "bugs": {
-    "url": "https://github.com/maksymdolynchuk/react-google-translate-shim/issues"
+    "url": "https://github.com/dolynchuk/react-google-translate-shim/issues"
   },
   "type": "module",
   "main": "./dist/index.cjs",
