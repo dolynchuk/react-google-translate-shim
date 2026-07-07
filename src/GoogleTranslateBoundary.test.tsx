@@ -2,34 +2,36 @@ import { act, render } from "@testing-library/react";
 import { useState } from "react";
 import { GoogleTranslateBoundary } from "./GoogleTranslateBoundary";
 
-let childMountCount = 0;
+const mountCounts: Record<string, number> = {};
 
-function CountingChild() {
+function Host({ id }: { id: string }) {
   useState(() => {
-    childMountCount += 1;
+    mountCounts[id] = (mountCounts[id] ?? 0) + 1;
     return null;
   });
-  return <span>content</span>;
+  return <div data-host={id}>content</div>;
 }
 
 const activateGoogleTranslate = () => {
   document.documentElement.classList.add("translated-ltr");
 };
 
-// Google Translate reparents a text node React still references, exactly as it
-// does in the browser, so the patched removeChild reports a conflict.
-const simulateTranslateConflict = () => {
-  const parent = document.createElement("div");
+// Reparent a text node under a <font> the way Google Translate does, then let
+// React's `removeChild(host, text)` hit the patch — `host` is the conflict node.
+const simulateConflictInside = (host: Element) => {
   const wrapper = document.createElement("font");
   const text = document.createTextNode("x");
-  parent.append(wrapper);
+  host.append(wrapper);
   wrapper.append(text);
-  parent.removeChild(text);
+  host.removeChild(text);
 };
+
+const hostEl = (container: HTMLElement, id: string) =>
+  container.querySelector(`[data-host="${id}"]`) as HTMLElement;
 
 describe("GoogleTranslateBoundary", () => {
   beforeEach(() => {
-    childMountCount = 0;
+    for (const key of Object.keys(mountCounts)) delete mountCounts[key];
     // Run the coalescing rAF synchronously so the remount is observable in-test.
     vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
       cb(0);
@@ -48,44 +50,90 @@ describe("GoogleTranslateBoundary", () => {
   it("renders its children", () => {
     const { container } = render(
       <GoogleTranslateBoundary>
-        <CountingChild />
+        <Host id="only" />
       </GoogleTranslateBoundary>
     );
 
     expect(container.textContent).toBe("content");
-    expect(childMountCount).toBe(1);
+    expect(mountCounts.only).toBe(1);
   });
 
   it("remounts children when a translate conflict is detected", () => {
-    render(
+    const { container } = render(
       <GoogleTranslateBoundary>
-        <CountingChild />
+        <Host id="only" />
       </GoogleTranslateBoundary>
     );
-    expect(childMountCount).toBe(1);
+    expect(mountCounts.only).toBe(1);
 
     activateGoogleTranslate();
     act(() => {
-      simulateTranslateConflict();
+      simulateConflictInside(hostEl(container, "only"));
     });
 
-    expect(childMountCount).toBe(2);
+    expect(mountCounts.only).toBe(2);
   });
 
   it("does not remount when translate is inactive", () => {
-    render(
+    const { container } = render(
       <GoogleTranslateBoundary>
-        <CountingChild />
+        <Host id="only" />
       </GoogleTranslateBoundary>
     );
-    expect(childMountCount).toBe(1);
+    expect(mountCounts.only).toBe(1);
 
     act(() => {
-      // No translate class present: a reparented-node removeChild must throw
-      // the genuine error and never trigger a remount.
-      expect(() => simulateTranslateConflict()).toThrow();
+      expect(() =>
+        simulateConflictInside(hostEl(container, "only"))
+      ).toThrow();
     });
 
-    expect(childMountCount).toBe(1);
+    expect(mountCounts.only).toBe(1);
+  });
+
+  it("remounts only the innermost boundary enclosing the conflict", () => {
+    const { container } = render(
+      <GoogleTranslateBoundary>
+        <Host id="outer" />
+        <GoogleTranslateBoundary>
+          <Host id="inner" />
+        </GoogleTranslateBoundary>
+      </GoogleTranslateBoundary>
+    );
+    expect(mountCounts.outer).toBe(1);
+    expect(mountCounts.inner).toBe(1);
+
+    activateGoogleTranslate();
+    act(() => {
+      simulateConflictInside(hostEl(container, "inner"));
+    });
+
+    // Only the inner boundary rebuilt; the outer subtree kept its state.
+    expect(mountCounts.inner).toBe(2);
+    expect(mountCounts.outer).toBe(1);
+  });
+
+  it("repair strategy heals in place without remounting", () => {
+    const { container } = render(
+      <GoogleTranslateBoundary strategy="repair">
+        <Host id="only" />
+      </GoogleTranslateBoundary>
+    );
+    expect(mountCounts.only).toBe(1);
+
+    activateGoogleTranslate();
+    const host = hostEl(container, "only");
+    const wrapper = document.createElement("font");
+    const text = document.createTextNode("x");
+    host.append(wrapper);
+    wrapper.append(text);
+
+    act(() => {
+      expect(() => host.removeChild(text)).not.toThrow();
+    });
+
+    // No remount, and the offending node was detached in place.
+    expect(mountCounts.only).toBe(1);
+    expect(text.parentNode).toBeNull();
   });
 });
