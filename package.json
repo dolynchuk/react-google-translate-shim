@@ -1,6 +1,6 @@
 {
   "name": "react-google-translate-shim",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Stop Google Translate (and other in-page machine translators) from crashing your React app with NotFoundError. Detects the conflict and re-renders from scratch instead of reconciling against corrupted DOM.",
   "keywords": [
     "react",
