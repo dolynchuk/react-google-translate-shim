@@ -1,7 +1,13 @@
-import { isGoogleTranslateActive, patchDomForGoogleTranslate } from "./core";
+import {
+  beginRecovery,
+  endRecovery,
+  isGoogleTranslateActive,
+  patchDomForGoogleTranslate,
+} from "./core";
 
 describe("patchDomForGoogleTranslate", () => {
   afterEach(() => {
+    endRecovery();
     document.documentElement.classList.remove(
       "translated-ltr",
       "translated-rtl"
@@ -12,77 +18,35 @@ describe("patchDomForGoogleTranslate", () => {
     document.documentElement.classList.add("translated-ltr");
   };
 
-  describe("remount strategy", () => {
-    it("does not throw and notifies with the target parent when removeChild hits a reparented node", () => {
-      activateGoogleTranslate();
-      const onConflict = vi.fn();
-      patchDomForGoogleTranslate({ onConflict, strategy: "remount" });
+  it("does not throw and notifies with the target parent when removeChild hits a reparented node", () => {
+    activateGoogleTranslate();
+    const onConflict = vi.fn();
+    patchDomForGoogleTranslate({ onConflict });
 
-      const parent = document.createElement("div");
-      const translationWrapper = document.createElement("font");
-      const text = document.createTextNode("hello");
-      parent.append(translationWrapper);
-      // Google Translate moves the text node under its own <font> wrapper, so
-      // React's `parent.removeChild(text)` call no longer matches reality.
-      translationWrapper.append(text);
+    const parent = document.createElement("div");
+    const translationWrapper = document.createElement("font");
+    const text = document.createTextNode("hello");
+    parent.append(translationWrapper);
+    // Google Translate moves the text node under its own <font> wrapper, so
+    // React's `parent.removeChild(text)` call no longer matches reality.
+    translationWrapper.append(text);
 
-      expect(() => parent.removeChild(text)).not.toThrow();
-      expect(onConflict).toHaveBeenCalledWith(parent);
-    });
-
-    it("notifies on conflict when insertBefore references a reparented node", () => {
-      activateGoogleTranslate();
-      const onConflict = vi.fn();
-      patchDomForGoogleTranslate({ onConflict, strategy: "remount" });
-
-      const parent = document.createElement("div");
-      const detachedReference = document.createElement("span");
-      const newNode = document.createElement("b");
-
-      expect(() =>
-        parent.insertBefore(newNode, detachedReference)
-      ).not.toThrow();
-      expect(parent.contains(newNode)).toBe(true);
-      expect(onConflict).toHaveBeenCalledWith(parent);
-    });
+    expect(() => parent.removeChild(text)).not.toThrow();
+    expect(onConflict).toHaveBeenCalledWith(parent);
   });
 
-  describe("repair strategy", () => {
-    it("detaches the reparented node without remounting or notifying", () => {
-      activateGoogleTranslate();
-      const onConflict = vi.fn();
-      patchDomForGoogleTranslate({ onConflict, strategy: "repair" });
+  it("notifies on conflict when insertBefore references a reparented node", () => {
+    activateGoogleTranslate();
+    const onConflict = vi.fn();
+    patchDomForGoogleTranslate({ onConflict });
 
-      const parent = document.createElement("div");
-      const translationWrapper = document.createElement("font");
-      const text = document.createTextNode("hello");
-      parent.append(translationWrapper);
-      translationWrapper.append(text);
+    const parent = document.createElement("div");
+    const detachedReference = document.createElement("span");
+    const newNode = document.createElement("b");
 
-      expect(() => parent.removeChild(text)).not.toThrow();
-      // Healed in place: the node is actually gone, and no remount was signalled.
-      expect(text.parentNode).toBeNull();
-      expect(onConflict).not.toHaveBeenCalled();
-    });
-
-    it("inserts before the wrapper ancestor to preserve order", () => {
-      activateGoogleTranslate();
-      const onConflict = vi.fn();
-      patchDomForGoogleTranslate({ onConflict, strategy: "repair" });
-
-      const parent = document.createElement("div");
-      const wrapper = document.createElement("font");
-      const reference = document.createTextNode("ref");
-      parent.append(wrapper);
-      wrapper.append(reference);
-      const newNode = document.createElement("b");
-
-      parent.insertBefore(newNode, reference);
-
-      // newNode lands before the <font> that holds the reference, not appended.
-      expect(parent.firstChild).toBe(newNode);
-      expect(onConflict).not.toHaveBeenCalled();
-    });
+    expect(() => parent.insertBefore(newNode, detachedReference)).not.toThrow();
+    expect(parent.contains(newNode)).toBe(true);
+    expect(onConflict).toHaveBeenCalledWith(parent);
   });
 
   it("lets the genuine NotFoundError surface when translate is NOT active", () => {
@@ -111,6 +75,24 @@ describe("patchDomForGoogleTranslate", () => {
 
     expect(parent.contains(child)).toBe(false);
     expect(onConflict).not.toHaveBeenCalled();
+  });
+
+  it("tolerates stale removals during recovery even when translate is inactive, without re-notifying", () => {
+    const onConflict = vi.fn();
+    patchDomForGoogleTranslate({ onConflict });
+
+    const parent = document.createElement("div");
+    const detached = document.createElement("span");
+
+    // Mid-recovery, translate may have switched off, yet React's teardown must
+    // never throw on a node that is no longer where it expects.
+    beginRecovery();
+    expect(() => parent.removeChild(detached)).not.toThrow();
+    expect(onConflict).not.toHaveBeenCalled();
+    endRecovery();
+
+    // Outside recovery the same call surfaces the genuine error again.
+    expect(() => parent.removeChild(detached)).toThrow();
   });
 });
 

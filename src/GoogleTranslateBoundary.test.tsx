@@ -1,5 +1,6 @@
 import { act, render } from "@testing-library/react";
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { GoogleTranslateBoundary } from "./GoogleTranslateBoundary";
 
 const mountCounts: Record<string, number> = {};
@@ -10,6 +11,14 @@ function Host({ id }: { id: string }) {
     return null;
   });
   return <div data-host={id}>content</div>;
+}
+
+function PortalHost({ id, target }: { id: string; target: HTMLElement }) {
+  useState(() => {
+    mountCounts[id] = (mountCounts[id] ?? 0) + 1;
+    return null;
+  });
+  return createPortal(<div data-host={id}>portal</div>, target);
 }
 
 const activateGoogleTranslate = () => {
@@ -26,8 +35,8 @@ const simulateConflictInside = (host: Element) => {
   host.removeChild(text);
 };
 
-const hostEl = (container: HTMLElement, id: string) =>
-  container.querySelector(`[data-host="${id}"]`) as HTMLElement;
+const hostEl = (root: ParentNode, id: string) =>
+  root.querySelector(`[data-host="${id}"]`) as HTMLElement;
 
 describe("GoogleTranslateBoundary", () => {
   beforeEach(() => {
@@ -58,7 +67,7 @@ describe("GoogleTranslateBoundary", () => {
     expect(mountCounts.only).toBe(1);
   });
 
-  it("remounts children when a translate conflict is detected", () => {
+  it("rebuilds children on a conflict, leaving no translate leftovers behind", () => {
     const { container } = render(
       <GoogleTranslateBoundary>
         <Host id="only" />
@@ -72,6 +81,9 @@ describe("GoogleTranslateBoundary", () => {
     });
 
     expect(mountCounts.only).toBe(2);
+    // The <font> wrapper injected during the conflict is gone after the rebuild.
+    expect(container.querySelector("font")).toBeNull();
+    expect(container.textContent).toBe("content");
   });
 
   it("does not remount when translate is inactive", () => {
@@ -83,9 +95,7 @@ describe("GoogleTranslateBoundary", () => {
     expect(mountCounts.only).toBe(1);
 
     act(() => {
-      expect(() =>
-        simulateConflictInside(hostEl(container, "only"))
-      ).toThrow();
+      expect(() => simulateConflictInside(hostEl(container, "only"))).toThrow();
     });
 
     expect(mountCounts.only).toBe(1);
@@ -113,27 +123,30 @@ describe("GoogleTranslateBoundary", () => {
     expect(mountCounts.outer).toBe(1);
   });
 
-  it("repair strategy heals in place without remounting", () => {
-    const { container } = render(
-      <GoogleTranslateBoundary strategy="repair">
-        <Host id="only" />
-      </GoogleTranslateBoundary>
-    );
-    expect(mountCounts.only).toBe(1);
+  it("recovers conflicts inside portals by rebuilding the outermost boundary", () => {
+    const portalTarget = document.createElement("div");
+    document.body.append(portalTarget);
+    try {
+      render(
+        <GoogleTranslateBoundary>
+          <Host id="app" />
+          <PortalHost id="portal" target={portalTarget} />
+        </GoogleTranslateBoundary>
+      );
+      expect(mountCounts.portal).toBe(1);
+      expect(mountCounts.app).toBe(1);
 
-    activateGoogleTranslate();
-    const host = hostEl(container, "only");
-    const wrapper = document.createElement("font");
-    const text = document.createTextNode("x");
-    host.append(wrapper);
-    wrapper.append(text);
+      activateGoogleTranslate();
+      act(() => {
+        // Conflict node lives in the portal target, outside every boundary's DOM.
+        simulateConflictInside(hostEl(portalTarget, "portal"));
+      });
 
-    act(() => {
-      expect(() => host.removeChild(text)).not.toThrow();
-    });
-
-    // No remount, and the offending node was detached in place.
-    expect(mountCounts.only).toBe(1);
-    expect(text.parentNode).toBeNull();
+      // Fallback rebuilt the whole app, re-rendering the portal too.
+      expect(mountCounts.app).toBe(2);
+      expect(mountCounts.portal).toBe(2);
+    } finally {
+      portalTarget.remove();
+    }
   });
 });

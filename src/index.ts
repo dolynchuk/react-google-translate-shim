@@ -7,5 +7,4 @@ export {
   isGoogleTranslateActive,
   type GoogleTranslateShimOptions,
   type PatchOptions,
-  type RecoveryStrategy,
 } from "./core";
