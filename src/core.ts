@@ -55,7 +55,9 @@ export function endRecovery() {
 export function patchDomForGoogleTranslate(options: PatchOptions = {}) {
   conflictHandler = options.onConflict ?? null;
   patchLog = createLogger(options.debug ?? false);
-  if (patchInstalled) return;
+  // No DOM to patch under server rendering — the boundary re-invokes this on the
+  // client during hydration, where `Node` exists.
+  if (patchInstalled || typeof Node === "undefined") return;
   patchInstalled = true;
 
   const originalRemoveChild = Node.prototype.removeChild;

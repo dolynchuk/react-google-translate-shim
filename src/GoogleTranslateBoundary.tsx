@@ -1,5 +1,6 @@
 import {
   Fragment,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -143,7 +144,7 @@ export function GoogleTranslateBoundary({
   // registry for its mounted lifetime, so conflict scoping can find and rebuild
   // the innermost enclosing boundary. Genuine external-store synchronization —
   // the legitimate use of an effect.
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const element = containerRef.current;
     if (!element) return;
     const entry: BoundaryEntry = {
@@ -159,7 +160,7 @@ export function GoogleTranslateBoundary({
 
   // A remount's tolerant-teardown window ends once its commit lands; clear the
   // recovery flag here, after React has applied this generation's DOM changes.
-  useLayoutEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     endRecovery();
   }, [generation]);
 
@@ -171,3 +172,8 @@ export function GoogleTranslateBoundary({
 }
 
 const DISPLAY_CONTENTS: CSSProperties = { display: "contents" };
+
+// `useLayoutEffect` warns during server rendering; fall back to `useEffect`
+// there. On the client (where conflicts actually happen) it stays layout-timed.
+const useIsomorphicLayoutEffect =
+  typeof document !== "undefined" ? useLayoutEffect : useEffect;
