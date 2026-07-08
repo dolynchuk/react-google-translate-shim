@@ -123,6 +123,23 @@ describe("GoogleTranslateBoundary", () => {
     expect(mountCounts.outer).toBe(1);
   });
 
+  it("calls onRecover when it rebuilds", () => {
+    const onRecover = vi.fn();
+    const { container } = render(
+      <GoogleTranslateBoundary onRecover={onRecover}>
+        <Host id="only" />
+      </GoogleTranslateBoundary>
+    );
+    expect(onRecover).not.toHaveBeenCalled();
+
+    activateGoogleTranslate();
+    act(() => {
+      simulateConflictInside(hostEl(container, "only"));
+    });
+
+    expect(onRecover).toHaveBeenCalledTimes(1);
+  });
+
   it("recovers conflicts inside portals by rebuilding the outermost boundary", () => {
     const portalTarget = document.createElement("div");
     document.body.append(portalTarget);

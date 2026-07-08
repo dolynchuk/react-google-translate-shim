@@ -16,6 +16,7 @@ import {
 interface BoundaryEntry {
   element: HTMLElement;
   remount: () => void;
+  notifyRecover: () => void;
 }
 
 const boundaries = new Set<BoundaryEntry>();
@@ -56,6 +57,7 @@ function flushRemounts() {
   for (const entry of targets) {
     entry.element.replaceChildren();
     entry.remount();
+    entry.notifyRecover();
   }
 }
 
@@ -89,6 +91,13 @@ function onlyOutermost(entries: BoundaryEntry[]) {
 export interface GoogleTranslateBoundaryProps
   extends GoogleTranslateShimOptions {
   children: ReactNode;
+  /**
+   * Called right when this boundary rebuilds to recover from a translation
+   * conflict — i.e. the moment React-local state inside it was reset. Use it to
+   * surface a non-blocking notice (e.g. a toast) so users understand why an
+   * in-progress edit may have cleared.
+   */
+  onRecover?: () => void;
 }
 
 /**
@@ -113,6 +122,7 @@ export interface GoogleTranslateBoundaryProps
 export function GoogleTranslateBoundary({
   children,
   debug = false,
+  onRecover,
 }: GoogleTranslateBoundaryProps) {
   // Install the DOM patch exactly once, before children mount. useState's lazy
   // initializer runs on first render only; the patch itself is idempotent.
@@ -123,6 +133,8 @@ export function GoogleTranslateBoundary({
 
   const [generation, setGeneration] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const onRecoverRef = useRef(onRecover);
+  onRecoverRef.current = onRecover;
 
   // Register this boundary's DOM anchor + remount callback in the module
   // registry for its mounted lifetime, so conflict scoping can find and rebuild
@@ -134,6 +146,7 @@ export function GoogleTranslateBoundary({
     const entry: BoundaryEntry = {
       element,
       remount: () => setGeneration((value) => value + 1),
+      notifyRecover: () => onRecoverRef.current?.(),
     };
     boundaries.add(entry);
     return () => {

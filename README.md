@@ -68,11 +68,14 @@ The rebuild is hardened so recovery itself is never a source of inconsistency:
   boundary's DOM) falls back to rebuilding the outermost boundary, so nothing is
   ever left uncorrected.
 
-The cost is that React-local `useState` **inside the rebuilt subtree** resets to
-its initial value. This is lost data, never *wrong* data — what's on screen always
-equals what's in state. Keep anything you can't afford to reset in a store
-(Zustand, Redux, a form library, Router singletons); those live outside the tree
-and always survive.
+> **"Always correct" means state and DOM never disagree — not "no data is ever
+> lost."** A rebuild resets React-local `useState` inside the rebuilt subtree to
+> initial values.
+
+This is lost data, never *wrong* data — what's on screen always equals what's in
+state, so a submit can never send a stale value. Keep anything you can't afford to
+reset in a store (Zustand, Redux, a form library, Router singletons); those live
+outside the tree and always survive.
 
 ## Shrinking the blast radius
 
@@ -88,6 +91,51 @@ another — and keep boundaries off your critical forms:
   </GoogleTranslateBoundary>
 </GoogleTranslateBoundary>
 ```
+
+## Keeping users informed
+
+Recovering silently already beats the alternative — a blank page the user has to
+reload by hand. But if a rebuild resets something they were editing, a little
+context keeps them from being confused. Two signals let you build that:
+
+**Don't** slap a permanent "you may lose data" banner on the page the moment
+translation turns on. Most people running Translate are simply reading in their
+language with nothing to lose, and nagging them is its own kind of broken. Warn
+*in context* instead.
+
+### `useGoogleTranslateActive()` — warn only where it matters
+
+A hook that re-renders when translation turns on/off. Use it to nudge users right
+where they're about to lose work — next to a form, not across the whole app:
+
+```tsx
+function EditorHint() {
+  const translating = useGoogleTranslateActive();
+  if (!translating) return null;
+  return (
+    <p role="status">
+      Translation is on. For the smoothest editing, turn it off in this tab.
+    </p>
+  );
+}
+```
+
+### `onRecover` — a gentle heads-up if a reset actually happens
+
+Fires the instant a boundary rebuilds (the moment its local state reset), so you
+can show a brief, non-blocking toast rather than leaving users wondering:
+
+```tsx
+<GoogleTranslateBoundary
+  onRecover={() => toast("Recovered from a translation glitch — re-check any unsaved input.")}
+>
+  <App />
+</GoogleTranslateBoundary>
+```
+
+The most user-friendly setup combines the pieces: keep form state in a store so it
+*survives* a rebuild, scope boundaries around volatile areas, show the contextual
+hint while editing, and fall back to an `onRecover` toast for the rare reset.
 
 ### Debug logging
 
@@ -128,11 +176,18 @@ Logging is off by default.
 Wrap your app with it. Props:
 
 - `children: ReactNode` — your app.
+- `onRecover?: () => void` — called when this boundary rebuilds to recover from a
+  conflict (the moment its local state reset). Good for a toast.
 - `debug?: boolean` — console logging. Default `false`.
+
+### `useGoogleTranslateActive(): boolean`
+
+React hook that re-renders when Google Translate turns on/off. Use it for
+translation-aware UI (e.g. a hint next to a form).
 
 ### `isGoogleTranslateActive(): boolean`
 
-Whether Google Translate is currently translating the page.
+Imperative, non-reactive check of the same thing — for use outside React.
 
 ### `patchDomForGoogleTranslate(options?)`
 
