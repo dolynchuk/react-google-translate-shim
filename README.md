@@ -95,47 +95,54 @@ another — and keep boundaries off your critical forms:
 ## Keeping users informed
 
 Recovering silently already beats the alternative — a blank page the user has to
-reload by hand. But if a rebuild resets something they were editing, a little
-context keeps them from being confused. Two signals let you build that:
+reload by hand. Two drop-in components make the experience clear without any
+wiring. Both are **unstyled by default** (pass `className` / `style`, or your own
+`children`) so they fit any design system.
 
-**Don't** slap a permanent "you may lose data" banner on the page the moment
-translation turns on. Most people running Translate are simply reading in their
-language with nothing to lose, and nagging them is its own kind of broken. Warn
-*in context* instead.
+### `<GoogleTranslateWarning>` — a warning while Translate is on
 
-### `useGoogleTranslateActive()` — warn only where it matters
-
-A hook that re-renders when translation turns on/off. Use it to nudge users right
-where they're about to lose work — next to a form, not across the whole app:
+Renders only while Google Translate is active, nothing otherwise:
 
 ```tsx
-function EditorHint() {
-  const translating = useGoogleTranslateActive();
-  if (!translating) return null;
-  return (
-    <p role="status">
-      Translation is on. For the smoothest editing, turn it off in this tab.
-    </p>
-  );
-}
+<GoogleTranslateWarning className="banner" />
+// → "Translation is on. For the smoothest experience while editing, turn it
+//    off in this tab — some in-progress input may reset."
 ```
 
-### `onRecover` — a gentle heads-up if a reset actually happens
+Put it wherever the warning is relevant. Placing it *next to an editable form*
+rather than app-wide is the friendliest choice — most people running Translate
+are just reading and have nothing to lose, so a permanent global banner mostly
+just nags them.
 
-Fires the instant a boundary rebuilds (the moment its local state reset), so you
-can show a brief, non-blocking toast rather than leaving users wondering:
+### `<GoogleTranslateRecoveryNotice>` — a notice each time a rebuild happens
+
+Shows a transient, auto-dismissing notice **every time** the app rebuilds to
+recover from a translation conflict. Place it **outside** your boundary (e.g. a
+top-level toast region) so the recovery doesn't unmount the notice itself:
 
 ```tsx
-<GoogleTranslateBoundary
-  onRecover={() => toast("Recovered from a translation glitch — re-check any unsaved input.")}
->
+<GoogleTranslateRecoveryNotice className="toast" duration={6000} />
+<GoogleTranslateBoundary>
   <App />
 </GoogleTranslateBoundary>
 ```
 
+### Building your own
+
+Prefer your own UI? The same two signals are exposed directly:
+
+- **`useGoogleTranslateActive(): boolean`** — re-renders when Translate turns
+  on/off. Back your own warning with it.
+- **`useGoogleTranslateRecovery(): { count }`** — re-renders on every recovery;
+  drive a toast from the count. (Compare against a mount-time baseline if you
+  only want *new* recoveries — the built-in notice does this for you.)
+- **`onRecover`** prop on `<GoogleTranslateBoundary>` — a per-boundary callback
+  fired the moment that boundary rebuilds.
+
 The most user-friendly setup combines the pieces: keep form state in a store so it
-*survives* a rebuild, scope boundaries around volatile areas, show the contextual
-hint while editing, and fall back to an `onRecover` toast for the rare reset.
+*survives* a rebuild, scope boundaries around volatile areas, show
+`<GoogleTranslateWarning>` next to editable forms, and mount a
+`<GoogleTranslateRecoveryNotice>` for the rare reset.
 
 ### Debug logging
 
@@ -180,14 +187,31 @@ Wrap your app with it. Props:
   conflict (the moment its local state reset). Good for a toast.
 - `debug?: boolean` — console logging. Default `false`.
 
+### `<GoogleTranslateWarning>`
+
+Renders a warning while Translate is active, nothing otherwise. Props:
+`children?` (defaults to a built-in message), `className?`, `style?`.
+
+### `<GoogleTranslateRecoveryNotice>`
+
+Transient, auto-dismissing notice shown on each recovery. Mount it outside your
+boundary. Props: `children?`, `duration?` (ms, default `6000`), `className?`,
+`style?`.
+
 ### `useGoogleTranslateActive(): boolean`
 
 React hook that re-renders when Google Translate turns on/off. Use it for
 translation-aware UI (e.g. a hint next to a form).
 
+### `useGoogleTranslateRecovery(): { count }`
+
+React hook that re-renders on every recovery; `count` is the session total. Drive
+your own notification from it.
+
 ### `isGoogleTranslateActive(): boolean`
 
-Imperative, non-reactive check of the same thing — for use outside React.
+Imperative, non-reactive check of whether Translate is active — for use outside
+React.
 
 ### `patchDomForGoogleTranslate(options?)`
 

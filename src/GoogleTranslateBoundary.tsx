@@ -12,6 +12,7 @@ import {
   patchDomForGoogleTranslate,
   type GoogleTranslateShimOptions,
 } from "./core";
+import { notifyRecovery } from "./recovery";
 
 interface BoundaryEntry {
   element: HTMLElement;
@@ -59,6 +60,8 @@ function flushRemounts() {
     entry.remount();
     entry.notifyRecover();
   }
+  // One global recovery event per rebuild cycle, for app-wide notifications.
+  notifyRecovery();
 }
 
 function findInnermostBoundary(node: Node) {

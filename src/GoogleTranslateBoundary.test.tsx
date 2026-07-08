@@ -2,6 +2,7 @@ import { act, render } from "@testing-library/react";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { GoogleTranslateBoundary } from "./GoogleTranslateBoundary";
+import { useGoogleTranslateRecovery } from "./recovery";
 
 const mountCounts: Record<string, number> = {};
 
@@ -121,6 +122,34 @@ describe("GoogleTranslateBoundary", () => {
     // Only the inner boundary rebuilt; the outer subtree kept its state.
     expect(mountCounts.inner).toBe(2);
     expect(mountCounts.outer).toBe(1);
+  });
+
+  it("reports the rebuild to useGoogleTranslateRecovery consumers outside the boundary", () => {
+    function RecoveryCount() {
+      const { count } = useGoogleTranslateRecovery();
+      return <span data-count={count} />;
+    }
+    const { container } = render(
+      <div>
+        <RecoveryCount />
+        <GoogleTranslateBoundary>
+          <Host id="only" />
+        </GoogleTranslateBoundary>
+      </div>
+    );
+    const before = Number(
+      container.querySelector("[data-count]")?.getAttribute("data-count")
+    );
+
+    activateGoogleTranslate();
+    act(() => {
+      simulateConflictInside(hostEl(container, "only"));
+    });
+
+    const after = Number(
+      container.querySelector("[data-count]")?.getAttribute("data-count")
+    );
+    expect(after).toBe(before + 1);
   });
 
   it("calls onRecover when it rebuilds", () => {
