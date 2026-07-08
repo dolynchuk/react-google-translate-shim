@@ -94,12 +94,14 @@ function onlyOutermost(entries: BoundaryEntry[]) {
 
 export interface GoogleTranslateBoundaryProps
   extends GoogleTranslateShimOptions {
+  /** The app (or subtree) to keep alive. Rebuilt from state on a conflict. */
   children: ReactNode;
   /**
    * Called right when this boundary rebuilds to recover from a translation
    * conflict — i.e. the moment React-local state inside it was reset. Use it to
    * surface a non-blocking notice (e.g. a toast) so users understand why an
-   * in-progress edit may have cleared.
+   * in-progress edit may have cleared. For app-wide notices prefer
+   * `<GoogleTranslateRecoveryNotice>` / `useGoogleTranslateRecovery` instead.
    */
   onRecover?: () => void;
 }
@@ -110,11 +112,17 @@ export interface GoogleTranslateBoundaryProps
  *
  * ```tsx
  * createRoot(document.getElementById("root")!).render(
- *   <GoogleTranslateBoundary>
- *     <App />
- *   </GoogleTranslateBoundary>
+ *   <>
+ *     <GoogleTranslateRecoveryNotice />
+ *     <GoogleTranslateBoundary>
+ *       <App />
+ *     </GoogleTranslateBoundary>
+ *   </>
  * );
  * ```
+ *
+ * (Render the notice as a sibling, outside the boundary, so the rebuild it
+ * reports on doesn't unmount it.)
  *
  * When Google Translate corrupts the DOM and a mutation would crash React, the
  * boundary rebuilds its children from scratch — a full re-render with no
@@ -122,6 +130,9 @@ export interface GoogleTranslateBoundaryProps
  * sync with what's on screen. Nest boundaries to shrink the blast radius: only
  * the innermost one enclosing the conflict rebuilds, and state everywhere else
  * (and in module-level stores) survives untouched.
+ *
+ * Pair it with `<GoogleTranslateRecoveryNotice>` (rendered as a sibling, outside
+ * the boundary) to show the user a message whenever a recovery happens.
  */
 export function GoogleTranslateBoundary({
   children,

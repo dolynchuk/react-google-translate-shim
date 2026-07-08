@@ -29,26 +29,59 @@ npm install react-google-translate-shim
 
 React 18+ is a peer dependency.
 
-## Usage
+## Quick start
 
-Keep your existing `createRoot(...).render(...)` exactly as it is. Just wrap your
-app in `<GoogleTranslateBoundary>`:
+Keep your existing `createRoot(...).render(...)`. Wrap the whole app in
+`<GoogleTranslateBoundary>` so a translation conflict rebuilds the entire page
+from React state instead of crashing it, and render a `<GoogleTranslateRecoveryNotice>`
+**as a sibling — outside the boundary** — so it survives that rebuild and tells
+the user what happened.
 
 ```tsx
+// main.tsx
 import { createRoot } from "react-dom/client";
-import { GoogleTranslateBoundary } from "react-google-translate-shim";
+import {
+  GoogleTranslateBoundary,
+  GoogleTranslateRecoveryNotice,
+} from "react-google-translate-shim";
 import { App } from "./App";
 
 createRoot(document.getElementById("root")!).render(
-  <GoogleTranslateBoundary>
-    <App />
-  </GoogleTranslateBoundary>
+  <>
+    {/* Outside the boundary: it must NOT be rebuilt by the recovery it reports. */}
+    <GoogleTranslateRecoveryNotice
+      style={{
+        position: "fixed",
+        bottom: 16,
+        left: "50%",
+        transform: "translateX(-50%)",
+        background: "#111",
+        color: "#fff",
+        padding: "10px 16px",
+        borderRadius: 8,
+        zIndex: 9999,
+        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.2)",
+      }}
+    >
+      We refreshed the page to fix a translation glitch — please double-check any
+      unsaved changes.
+    </GoogleTranslateRecoveryNotice>
+
+    <GoogleTranslateBoundary>
+      <App />
+    </GoogleTranslateBoundary>
+  </>
 );
 ```
 
-That's it. The boundary doesn't own the root or touch your render call — it just
-watches for translation conflicts and rebuilds its children when one happens,
-instead of letting the app crash.
+That's the whole integration. The boundary doesn't own the root or change how you
+render — it watches for the translation conflict that would otherwise crash React,
+rebuilds the page from state, and the notice shows your message for a few seconds.
+
+> **Placement rule (important):** `<GoogleTranslateRecoveryNotice>` and any
+> `useGoogleTranslateRecovery()` consumer must sit **outside**
+> `<GoogleTranslateBoundary>`. Inside, the rebuild would unmount the very thing
+> reporting it. `<GoogleTranslateWarning>` can go anywhere.
 
 ## Correctness guarantee
 
