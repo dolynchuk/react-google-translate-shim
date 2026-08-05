@@ -18,6 +18,7 @@ export {
 export {
   patchDomForGoogleTranslate,
   isGoogleTranslateActive,
+  isMicrosoftTranslateActive,
   type GoogleTranslateShimOptions,
   type PatchOptions,
 } from "./core";

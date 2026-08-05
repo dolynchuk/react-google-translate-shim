@@ -125,17 +125,29 @@ export function isGoogleTranslateActive() {
 }
 
 /**
+ * Whether Microsoft Translator (Edge's built-in translator) is translating the
+ * page. Unlike the Google Translate widget it sets no marker class on `<html>`;
+ * it stamps a `_msttexthash` attribute onto every element whose text it rewrote.
+ */
+export function isMicrosoftTranslateActive() {
+  if (typeof document === "undefined") return false;
+  return document.querySelector("[_msttexthash]") !== null;
+}
+
+/**
  * Whether a parent-mismatch mutation is translation corruption rather than a
  * genuine React bug. True while a recovery is in flight (teardown of a corrupted
- * subtree must never throw part-way through), while the Google Translate widget
- * is active, or when the mismatch itself carries the translator `<font>`
- * fingerprint — the latter is what lets the shim catch browser-native
- * translators, which never set the widget's `<html>` class.
+ * subtree must never throw part-way through), while a known translator is active
+ * (the Google Translate widget's `<html>` class, or Microsoft Translator's
+ * `_msttexthash` attribute), or when the mismatch itself carries the translator
+ * `<font>` fingerprint — the latter is what lets the shim catch browser-native
+ * translators that leave no page-level marker.
  */
 function isTranslationConflict(movedNode: Node, intendedParent: Node) {
   return (
     recovering ||
     isGoogleTranslateActive() ||
+    isMicrosoftTranslateActive() ||
     bearsTranslationSignature(movedNode, intendedParent)
   );
 }

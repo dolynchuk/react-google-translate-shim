@@ -2,6 +2,7 @@ import {
   beginRecovery,
   endRecovery,
   isGoogleTranslateActive,
+  isMicrosoftTranslateActive,
   patchDomForGoogleTranslate,
 } from "./core";
 
@@ -12,6 +13,7 @@ describe("patchDomForGoogleTranslate", () => {
       "translated-ltr",
       "translated-rtl"
     );
+    for (const el of document.querySelectorAll("[_msttexthash]")) el.remove();
   });
 
   const activateGoogleTranslate = () => {
@@ -75,6 +77,24 @@ describe("patchDomForGoogleTranslate", () => {
     const detached = document.createTextNode("world");
 
     expect(() => parent.removeChild(detached)).not.toThrow();
+    expect(onConflict).toHaveBeenCalledWith(parent);
+  });
+
+  it("intervenes while Microsoft Translator (Edge) is active, detected by [_msttexthash]", () => {
+    // Edge stamps _msttexthash on rewritten elements and sets no <html> class.
+    const stamped = document.createElement("div");
+    stamped.setAttribute("_msttexthash", "123");
+    document.body.append(stamped);
+    const onConflict = vi.fn();
+    patchDomForGoogleTranslate({ onConflict });
+
+    const parent = document.createElement("div");
+    const detachedReference = document.createElement("span");
+    const newNode = document.createElement("b");
+
+    expect(isGoogleTranslateActive()).toBe(false);
+    expect(isMicrosoftTranslateActive()).toBe(true);
+    expect(() => parent.insertBefore(newNode, detachedReference)).not.toThrow();
     expect(onConflict).toHaveBeenCalledWith(parent);
   });
 

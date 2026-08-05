@@ -13,7 +13,7 @@ import {
   patchDomForGoogleTranslate,
   type GoogleTranslateShimOptions,
 } from "./core";
-import { notifyRecovery } from "./recovery";
+import { isRecoveryLimitReached, notifyRecovery } from "./recovery";
 
 interface BoundaryEntry {
   element: HTMLElement;
@@ -26,6 +26,10 @@ const pendingRemounts = new Set<BoundaryEntry>();
 let flushScheduled = false;
 
 function handleConflict(conflictNode: Node) {
+  // Past the remount cap, stop rebuilding and let the patched DOM methods keep
+  // swallowing conflicts — otherwise an aggressive translator loops forever,
+  // re-corrupting each freshly rebuilt subtree.
+  if (isRecoveryLimitReached()) return;
   const target = findInnermostBoundary(conflictNode);
   if (target) {
     pendingRemounts.add(target);

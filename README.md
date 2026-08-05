@@ -202,17 +202,19 @@ Logging is off by default.
    throwing.
 2. **Only on translation corruption.** The patch intervenes *only* when the
    mismatch is a translator's doing — the Google Translate widget is active
-   (detected via the `translated-ltr` / `translated-rtl` class it adds to
-   `<html>`), or the mismatched node carries the universal translator
-   fingerprint: it was re-parented into a `<font>` wrapper. That `<font>` check
-   covers browser-native translators too (Chrome, Edge, Safari, Firefox), which
-   corrupt the DOM identically but never set the widget's class. A genuine React
-   bug never involves a `<font>`, so the native error is still left to surface and
-   real bugs are never masked.
+   (`translated-ltr` / `translated-rtl` on `<html>`), Microsoft Translator (Edge)
+   is active (the `_msttexthash` attribute it stamps on rewritten elements), or
+   the mismatched node carries the universal translator fingerprint: it was
+   re-parented into a `<font>` wrapper. The `<font>` check covers browser-native
+   translators (Chrome, Edge, Safari, Firefox), which corrupt the DOM identically
+   but leave no page-level marker. A genuine React bug never involves a `<font>`,
+   so the native error is still left to surface and real bugs are never masked.
 3. **Recover, scoped to the conflict.** The boundary bumps a `key` on its
    children so React discards the corrupted subtree and rebuilds it from state —
    and only the innermost enclosing boundary rebuilds. Bursts of failures are
-   coalesced into one recovery per frame.
+   coalesced into one recovery per frame, and after `MAX_RECOVERIES` (3) rebuilds
+   in a session it stops remounting and lets the patched DOM methods keep
+   swallowing conflicts, so an aggressive translator can't drive a rebuild loop.
 
 ## API
 

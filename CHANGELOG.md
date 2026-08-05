@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.1
+
+- **Microsoft Translator (Edge) detection.** The crash guard now also treats a
+  conflict as translation corruption when the page carries Edge's `_msttexthash`
+  attribute, which its built-in translator stamps on rewritten elements without
+  ever setting a marker class on `<html>`. Exposed as `isMicrosoftTranslateActive()`.
+- **Remount cap (`MAX_RECOVERIES = 3`).** After three rebuilds in a session the
+  boundary stops remounting and lets the patched `removeChild` / `insertBefore`
+  keep swallowing conflicts. A remount hands the translator fresh untranslated
+  DOM, which it rewrites immediately, so an aggressive translator would otherwise
+  loop forever. `resetRecoveryCount()` clears the counter.
+
 ## 0.5.0
 
 - **Covers browser-native translators.** The crash guard now also recognises a

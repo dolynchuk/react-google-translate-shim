@@ -2,7 +2,7 @@ import { act, render } from "@testing-library/react";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { GoogleTranslateBoundary } from "./GoogleTranslateBoundary";
-import { useGoogleTranslateRecovery } from "./recovery";
+import { resetRecoveryCount, useGoogleTranslateRecovery } from "./recovery";
 
 const mountCounts: Record<string, number> = {};
 
@@ -42,6 +42,9 @@ const hostEl = (root: ParentNode, id: string) =>
 describe("GoogleTranslateBoundary", () => {
   beforeEach(() => {
     for (const key of Object.keys(mountCounts)) delete mountCounts[key];
+    // recoveryCount is a session-global monotonic counter; reset it so the
+    // MAX_RECOVERIES cap from one test never suppresses remounts in the next.
+    resetRecoveryCount();
     // Run the coalescing rAF synchronously so the remount is observable in-test.
     vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
       cb(0);
@@ -217,5 +220,25 @@ describe("GoogleTranslateBoundary", () => {
     } finally {
       portalTarget.remove();
     }
+  });
+
+  it("stops remounting after MAX_RECOVERIES so an aggressive translator can't loop", () => {
+    const { container } = render(
+      <GoogleTranslateBoundary>
+        <Host id="only" />
+      </GoogleTranslateBoundary>
+    );
+    expect(mountCounts.only).toBe(1);
+
+    activateGoogleTranslate();
+    // Four conflicts, but only the first three (MAX_RECOVERIES) rebuild; the
+    // fourth is swallowed by the patched DOM methods with no further remount.
+    for (let i = 0; i < 4; i++) {
+      act(() => {
+        simulateConflictInside(hostEl(container, "only"));
+      });
+    }
+
+    expect(mountCounts.only).toBe(4);
   });
 });
