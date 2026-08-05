@@ -49,6 +49,35 @@ describe("patchDomForGoogleTranslate", () => {
     expect(onConflict).toHaveBeenCalledWith(parent);
   });
 
+  it("intervenes on a <font> reparent even without the widget class (Chrome/Edge native translate)", () => {
+    // Browser-native translators wrap text in <font> but never set the
+    // translated-ltr/-rtl class, so the class gate alone would miss them.
+    const onConflict = vi.fn();
+    patchDomForGoogleTranslate({ onConflict });
+
+    const parent = document.createElement("div");
+    const translationWrapper = document.createElement("font");
+    const text = document.createTextNode("hello");
+    parent.append(translationWrapper);
+    translationWrapper.append(text);
+
+    expect(isGoogleTranslateActive()).toBe(false);
+    expect(() => parent.removeChild(text)).not.toThrow();
+    expect(onConflict).toHaveBeenCalledWith(parent);
+  });
+
+  it("intervenes when a detached node's intended parent holds a <font> wrapper", () => {
+    const onConflict = vi.fn();
+    patchDomForGoogleTranslate({ onConflict });
+
+    const parent = document.createElement("div");
+    parent.append(document.createElement("font"));
+    const detached = document.createTextNode("world");
+
+    expect(() => parent.removeChild(detached)).not.toThrow();
+    expect(onConflict).toHaveBeenCalledWith(parent);
+  });
+
   it("lets the genuine NotFoundError surface when translate is NOT active", () => {
     const onConflict = vi.fn();
     patchDomForGoogleTranslate({ onConflict });

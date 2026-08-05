@@ -38,19 +38,22 @@ export function endRecovery() {
 
 /**
  * Makes `Node.prototype.removeChild` / `insertBefore` tolerant of the DOM
- * rewriting Google Translate does, so a translation-corrupted mutation can never
- * crash React mid-commit.
+ * rewriting in-browser translators do, so a translation-corrupted mutation can
+ * never crash React mid-commit.
  *
- * Google Translate wraps text nodes in `<font>` elements. React keeps direct
- * references to the original text nodes, so its next `removeChild` /
+ * Every in-browser translator wraps text runs in `<font>` elements. React keeps
+ * direct references to the original text nodes, so its next `removeChild` /
  * `insertBefore` on one of them throws `NotFoundError` mid-commit and takes the
  * whole app down (https://github.com/facebook/react/issues/11538). A parent
  * mismatch is the exact signature of that crash — the native call would throw.
  *
- * We only intervene while translation is active (see
- * {@link isGoogleTranslateActive}) or a recovery is in flight; otherwise the
- * native error is left to surface, so genuine React bugs are never masked. The
- * override is installed once; later calls only swap the handler and logger.
+ * We intervene only when the mismatch is translation corruption — a recovery is
+ * in flight, the Google Translate widget is active (see
+ * {@link isGoogleTranslateActive}), or the mismatch bears the universal
+ * translator `<font>` signature (see {@link bearsTranslationSignature}).
+ * Otherwise the native error is left to surface, so genuine React bugs are never
+ * masked. The override is installed once; later calls only swap the handler and
+ * logger.
  */
 export function patchDomForGoogleTranslate(options: PatchOptions = {}) {
   conflictHandler = options.onConflict ?? null;
@@ -65,7 +68,7 @@ export function patchDomForGoogleTranslate(options: PatchOptions = {}) {
     this: Node,
     child: T
   ): T {
-    if (child.parentNode !== this && shouldIntervene()) {
+    if (child.parentNode !== this && isTranslationConflict(child, this)) {
       patchLog.warn(
         "removeChild would have thrown NotFoundError — node's real parent is now",
         child.parentNode,
@@ -85,7 +88,11 @@ export function patchDomForGoogleTranslate(options: PatchOptions = {}) {
     node: T,
     reference: Node | null
   ): T {
-    if (reference && reference.parentNode !== this && shouldIntervene()) {
+    if (
+      reference &&
+      reference.parentNode !== this &&
+      isTranslationConflict(reference, this)
+    ) {
       patchLog.warn(
         "insertBefore would have thrown NotFoundError — reference's real parent is now",
         reference.parentNode,
@@ -101,10 +108,13 @@ export function patchDomForGoogleTranslate(options: PatchOptions = {}) {
 }
 
 /**
- * Whether Google Translate is currently translating the page. It marks a
- * translated document with a `translated-ltr` / `translated-rtl` class on the
- * `<html>` element. Gating recovery on this keeps the shim inert (native
- * behavior) until translation is active.
+ * Whether the Google Translate widget/extension is translating the page. It
+ * marks a translated document with a `translated-ltr` / `translated-rtl` class
+ * on the `<html>` element.
+ *
+ * This detects the widget specifically — browser-native translators (Chrome,
+ * Edge, Safari, Firefox) corrupt the DOM the same way but never set this class,
+ * so the crash guard also relies on {@link bearsTranslationSignature}.
  */
 export function isGoogleTranslateActive() {
   if (typeof document === "undefined") return false;
@@ -114,8 +124,38 @@ export function isGoogleTranslateActive() {
   );
 }
 
-function shouldIntervene() {
-  return recovering || isGoogleTranslateActive();
+/**
+ * Whether a parent-mismatch mutation is translation corruption rather than a
+ * genuine React bug. True while a recovery is in flight (teardown of a corrupted
+ * subtree must never throw part-way through), while the Google Translate widget
+ * is active, or when the mismatch itself carries the translator `<font>`
+ * fingerprint — the latter is what lets the shim catch browser-native
+ * translators, which never set the widget's `<html>` class.
+ */
+function isTranslationConflict(movedNode: Node, intendedParent: Node) {
+  return (
+    recovering ||
+    isGoogleTranslateActive() ||
+    bearsTranslationSignature(movedNode, intendedParent)
+  );
+}
+
+/**
+ * The DOM fingerprint every in-browser translator leaves: it wraps translated
+ * text runs in `<font>` elements — a tag no modern app emits itself —
+ * re-parenting the nodes React still tracks. The node React tried to mutate is
+ * now inside such a wrapper, or its intended parent holds one. A genuine
+ * double-remove / stale-insert bug never involves a `<font>`, so gating on this
+ * keeps real React bugs unmasked while covering Chrome, Edge, Safari, and
+ * Firefox translation in addition to the Google Translate widget.
+ */
+function bearsTranslationSignature(movedNode: Node, intendedParent: Node) {
+  if (movedNode.parentNode?.nodeName === "FONT") return true;
+  return (
+    typeof Element !== "undefined" &&
+    intendedParent instanceof Element &&
+    intendedParent.querySelector("font") !== null
+  );
 }
 
 type Logger = {

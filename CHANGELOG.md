@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0
+
+- **Covers browser-native translators.** The crash guard now also recognises a
+  conflict by the universal translator fingerprint — a node re-parented into a
+  `<font>` wrapper — instead of relying solely on the Google Translate widget's
+  `translated-ltr` / `translated-rtl` class on `<html>`. Chrome, Edge, Safari,
+  and Firefox in-page translation corrupt the DOM the same way but never set that
+  class, so the previous release let those crashes through; they are now caught
+  and recovered like the widget's. Genuine React bugs still surface — a real
+  mismatch never involves a `<font>`.
+
 ## 0.4.0
 
 Correctness-first release.

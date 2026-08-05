@@ -87,7 +87,7 @@ describe("GoogleTranslateBoundary", () => {
     expect(container.textContent).toBe("content");
   });
 
-  it("does not remount when translate is inactive", () => {
+  it("rebuilds on a <font> conflict even without the widget class (browser-native translate)", () => {
     const { container } = render(
       <GoogleTranslateBoundary>
         <Host id="only" />
@@ -95,8 +95,31 @@ describe("GoogleTranslateBoundary", () => {
     );
     expect(mountCounts.only).toBe(1);
 
+    // No translated-ltr/-rtl class: Chrome/Edge/Safari native translation is
+    // recognised by the <font> wrapper alone.
     act(() => {
-      expect(() => simulateConflictInside(hostEl(container, "only"))).toThrow();
+      simulateConflictInside(hostEl(container, "only"));
+    });
+
+    expect(mountCounts.only).toBe(2);
+    expect(container.querySelector("font")).toBeNull();
+  });
+
+  it("does not remount on a genuine mismatch with no translator artifact", () => {
+    const { container } = render(
+      <GoogleTranslateBoundary>
+        <Host id="only" />
+      </GoogleTranslateBoundary>
+    );
+    expect(mountCounts.only).toBe(1);
+
+    // A real cross-parent removal — no <font> anywhere — must still surface as
+    // the native NotFoundError instead of being swallowed as a translation glitch.
+    act(() => {
+      const host = hostEl(container, "only");
+      const orphan = document.createElement("span");
+      document.createElement("div").append(orphan);
+      expect(() => host.removeChild(orphan)).toThrow();
     });
 
     expect(mountCounts.only).toBe(1);

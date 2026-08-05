@@ -200,10 +200,15 @@ Logging is off by default.
    wrapped so that when the target node's real parent no longer matches (the
    exact signature of the crash) the doomed native call is skipped instead of
    throwing.
-2. **Only while translating.** The patch intervenes *only* when Google Translate
-   is active — detected via the `translated-ltr` / `translated-rtl` class it adds
-   to `<html>`. When translation is off, the native error is left to surface, so
-   genuine React bugs are never masked.
+2. **Only on translation corruption.** The patch intervenes *only* when the
+   mismatch is a translator's doing — the Google Translate widget is active
+   (detected via the `translated-ltr` / `translated-rtl` class it adds to
+   `<html>`), or the mismatched node carries the universal translator
+   fingerprint: it was re-parented into a `<font>` wrapper. That `<font>` check
+   covers browser-native translators too (Chrome, Edge, Safari, Firefox), which
+   corrupt the DOM identically but never set the widget's class. A genuine React
+   bug never involves a `<font>`, so the native error is still left to surface and
+   real bugs are never masked.
 3. **Recover, scoped to the conflict.** The boundary bumps a `key` on its
    children so React discards the corrupted subtree and rebuilds it from state —
    and only the innermost enclosing boundary rebuilds. Bursts of failures are
